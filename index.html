@@ -430,7 +430,7 @@
      * 1. Eliminates duplicate event listener leaks via single-root Event Delegation on #grid.
      * 2. Pre-indexes search haystack and pack counts in O(N) time during ingestion.
      * 3. Adds developer copy presets (Raw ID, <tg-emoji> HTML, MarkdownV2), Favorites & Recent history.
-     * 4. Preserves exact compatibility with `emojis.json?v=20261027i` while providing a rich fallback demo & drag-and-drop loader.
+     * 4. Preserves exact compatibility with `emojis.json?v=20261027j` while providing a rich fallback demo & drag-and-drop loader.
      */
     const PAGE = 120;
     const STORAGE_KEYS = {
@@ -1073,7 +1073,7 @@
     applyDensityUI();
     renderSkeletons();
 
-    fetch('emojis.json?v=20261027i')
+    fetch('emojis.json?v=20261027j')
       .then(r => {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
