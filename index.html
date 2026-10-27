@@ -96,7 +96,7 @@ function apply(){
   });
   render(true);
 }
-fetch('emojis.json').then(r=>r.json()).then(data=>{
+fetch('emojis.json?v=20261027b').then(r=>r.json()).then(data=>{
   ALL=data;
   [...new Set(data.map(e=>e.pack))].sort().forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=`${p} (${data.filter(e=>e.pack===p).length})`; packEl.appendChild(o); });
   document.getElementById('hint').textContent=`${data.length} emojis loaded. Unnamed emojis can still be found by pack or alt.`;
