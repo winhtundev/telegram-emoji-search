@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telegram Emoji Search</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0f1420;color:#e8ecf4}
+  header{position:sticky;top:0;background:#0f1420ee;backdrop-filter:blur(6px);padding:18px 16px 12px;border-bottom:1px solid #24304a;z-index:5}
+  h1{margin:0 0 4px;font-size:22px} p.sub{margin:0 0 12px;color:#9aa7bd;font-size:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;max-width:1100px;margin:0 auto}
+  header .row{max-width:1100px}
+  input[type=search]{flex:1;min-width:220px;padding:12px 14px;border-radius:12px;border:1px solid #2c3a58;background:#172036;color:#fff;font-size:16px;outline:none}
+  input[type=search]:focus{border-color:#5b8cff}
+  select{padding:12px;border-radius:12px;border:1px solid #2c3a58;background:#172036;color:#fff;font-size:15px}
+  main{max-width:1100px;margin:0 auto;padding:16px}
+  #count{color:#9aa7bd;font-size:14px;margin:4px 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .card{background:#172036;border:1px solid #24304a;border-radius:14px;padding:10px;cursor:pointer;text-align:center}
+  .card:hover{border-color:#5b8cff}
+  .media{height:120px;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:10px;background:#0d1220}
+  .media img,.media video{max-width:110px;max-height:110px;object-fit:contain}
+  .name{font-size:14px;margin:8px 0 2px;line-height:1.3;min-height:36px}
+  .pack{font-size:12px;color:#9aa7bd;word-break:break-all}
+  .id{font-size:11px;color:#7d8aa5;word-break:break-all;margin-top:4px}
+  button.copy{margin-top:8px;width:100%;padding:8px;border:0;border-radius:9px;background:#2a4bff;color:#fff;font-size:13px;cursor:pointer}
+  button.copy:active{background:#1e3ac2}
+  #more{display:block;margin:22px auto;padding:12px 22px;border-radius:12px;border:0;background:#2a4bff;color:#fff;font-size:15px;cursor:pointer}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#fff;color:#111;padding:10px 16px;border-radius:999px;font-size:14px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+  .hint{font-size:13px;color:#9aa7bd}
+</style>
+</head>
+<body>
+<header>
+  <div class="row"><div style="flex:1;min-width:260px">
+    <h1>Telegram Emoji Search</h1>
+    <p class="sub">Search by name, e.g. <b style="color:#fff">ChatGPT</b>. Hover a card to play the animation. Click a card to copy its ID.</p>
+  </div></div>
+  <div class="row">
+    <input id="q" type="search" placeholder="Search emojis… e.g. ChatGPT, heart, verified, telegram" autofocus>
+    <select id="pack"><option value="">All packs</option></select>
+  </div>
+</header>
+<main>
+  <div id="count"></div>
+  <div id="grid" class="grid"></div>
+  <button id="more" style="display:none">Load more</button>
+  <p class="hint" id="hint"></p>
+</main>
+<div id="toast">Copied</div>
+<script>
+let ALL=[], filtered=[], shown=0; const PAGE=120;
+const qEl=document.getElementById('q'), packEl=document.getElementById('pack'),
+      grid=document.getElementById('grid'), countEl=document.getElementById('count'),
+      moreBtn=document.getElementById('more'), toast=document.getElementById('toast');
+function showToast(t){ toast.textContent=t; toast.style.display='block'; setTimeout(()=>toast.style.display='none',1500); }
+function copyId(id){ const done=()=>showToast('Copied ID: '+id);
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(id).then(done).catch(()=>fallback()); } else fallback();
+  function fallback(){ const ta=document.createElement('textarea'); ta.value=id; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(); } }
+function cardHTML(e){
+  const name=e.name||'Unnamed';
+  const media=e.webm
+    ? `<video muted loop playsinline preload="none" poster="${e.thumb||''}"><source src="${e.webm}" type="video/webm"></video>`
+    : (e.thumb?`<img loading="lazy" src="${e.thumb}" alt="${name}">`:`<span style="font-size:42px">${e.alt||'❓'}</span>`);
+  return `<div class="card" data-id="${e.id}">
+    <div class="media">${media}</div>
+    <div class="name">${name}</div>
+    <div class="pack">${e.pack}</div>
+    <div class="id">${e.id}</div>
+    <button class="copy" data-copy="${e.id}">Copy ID</button>
+  </div>`; }
+function render(reset){
+  if(reset){ grid.innerHTML=''; shown=0; }
+  const slice=filtered.slice(shown, shown+PAGE);
+  grid.insertAdjacentHTML('beforeend', slice.map(cardHTML).join(''));
+  shown+=slice.length;
+  countEl.textContent = filtered.length
+    ? `Showing ${shown} of ${filtered.length} emojis` + (filtered.length>shown?' — tap Load more for more':'')
+    : 'No emojis found. Try another word, or clear the pack filter.';
+  moreBtn.style.display = shown<filtered.length ? 'block':'none';
+  grid.querySelectorAll('.card').forEach(c=>{
+    const v=c.querySelector('video');
+    if(v){ c.addEventListener('mouseenter',()=>v.play().catch(()=>{})); c.addEventListener('mouseleave',()=>{v.pause(); v.currentTime=0;}); }
+    c.addEventListener('click',ev=>{ if(ev.target.closest('button')) return; copyId(c.dataset.id); });
+  });
+  grid.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation(); copyId(b.dataset.copy);}));
+}
+function apply(){
+  const q=qEl.value.trim().toLowerCase(), pack=packEl.value;
+  const words=q.split(/\s+/).filter(Boolean);
+  filtered=ALL.filter(e=>{
+    if(pack && e.pack!==pack) return false;
+    if(!words.length) return true;
+    const hay=((e.name||'')+' '+(e.alt||'')+' '+e.pack+' '+e.id).toLowerCase();
+    return words.every(w=>hay.includes(w));
+  });
+  render(true);
+}
+fetch('emojis.json').then(r=>r.json()).then(data=>{
+  ALL=data;
+  [...new Set(data.map(e=>e.pack))].sort().forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=`${p} (${data.filter(e=>e.pack===p).length})`; packEl.appendChild(o); });
+  document.getElementById('hint').textContent=`${data.length} emojis loaded. Unnamed emojis can still be found by pack or alt.`;
+  apply();
+}).catch(()=>{ countEl.textContent='Could not load emojis.json — make sure it sits next to index.html.'; });
+qEl.addEventListener('input',apply); packEl.addEventListener('change',apply);
+moreBtn.addEventListener('click',()=>render(false));
+</script>
+</body>
+</html>
