@@ -1,138 +1,1088 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Telegram Emoji Search</title>
-<style>
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#fff;background:#0e1621;min-height:100vh}
-  header{position:sticky;top:0;z-index:5;padding:18px 16px 14px;background:#17212b;border-bottom:1px solid #0e1621}
-  h1{margin:0 0 4px;font-size:clamp(19px,4vw,24px)}
-  p.sub{margin:0 0 12px;color:#7f91a4;font-size:14px;line-height:1.5}
-  .row{display:flex;gap:10px;flex-wrap:wrap;max-width:1200px;margin:0 auto;width:100%}
-  input[type=search]{flex:1 1 260px;min-width:0;padding:12px 14px;border-radius:10px;font-size:16px;color:#fff;outline:none;background:#242f3d;border:0}
-  input[type=search]::placeholder{color:#7f91a4}
-  input[type=search]:focus{box-shadow:0 0 0 2px #2aabee}
-  select{flex:0 1 220px;min-width:0;padding:12px 14px;border-radius:10px;font-size:15px;color:#fff;outline:none;cursor:pointer;background:#242f3d;border:0}
-  select option{background:#242f3d;color:#fff}
-  main{max-width:1200px;margin:0 auto;padding:20px 16px 40px;width:100%}
-  #count{color:#7f91a4;font-size:14px;margin:4px 0 14px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;align-items:start}
-  .card{padding:12px;cursor:pointer;text-align:center;border-radius:12px;background:#17212b;display:flex;flex-direction:column;gap:6px}
-  .card:hover{background:#1d2a38}
-  .media{height:110px;flex:none;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:8px;background:transparent}
-  .media img,.media video{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;display:block}
-  .name{font-size:14px;margin:2px 0 0;line-height:1.35;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .pack{font-size:12px;color:#7f91a4;word-break:break-all;line-height:1.3}
-  .id{font-size:11px;color:#5f7a90;margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  button.copy{margin-top:2px;width:100%;padding:9px;border:0;border-radius:10px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;background:#2aabee}
-  button.copy:active{background:#1d8fd1}
-  #more{display:block;margin:24px auto;padding:12px 24px;border:0;border-radius:10px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;background:#2aabee}
-  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:11px 18px;border-radius:12px;font-size:14px;display:none;z-index:10;color:#fff;background:#242f3d;box-shadow:0 4px 20px rgba(0,0,0,.4);max-width:calc(100vw - 32px);text-align:center}
-  .hint{font-size:13px;color:#7f91a4;line-height:1.5}
-  @media (max-width:900px){
-    .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
-    main{padding:16px 14px 32px}
-  }
-  @media (max-width:640px){
-    header{padding:12px 12px 10px}
-    p.sub{display:none}
-    input[type=search]{flex:1 1 100%;font-size:16px;padding:11px 14px}
-    select{flex:1 1 100%;padding:11px 14px}
-    .grid{grid-template-columns:repeat(3,1fr);gap:12px 8px}
-    .card{padding:8px;gap:6px;border-radius:12px}
-    .media{height:84px}
-    .name{font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-    .pack,.id,button.copy{display:none}
-    main{padding:14px 12px 28px}
-  }
-  @media (max-width:380px){
-    .grid{grid-template-columns:repeat(3,1fr);gap:8px}
-    .media{height:76px}
-    .name{font-size:11px}
-  }
-</style>
-</head>
-<body>
-<header>
-  <div class="row"><div style="flex:1;min-width:0">
-    <h1>Telegram Emoji Search</h1>
-    <p class="sub">Search 2,412 emojis by name, pack or ID. Tap a card to copy its ID.</p>
-  </div></div>
-  <div class="row">
-    <input id="q" type="search" placeholder="Search emojis…" autofocus>
-    <select id="pack"><option value="">All packs</option></select>
-  </div>
-</header>
-<main>
-  <div id="count"></div>
-  <div id="grid" class="grid"></div>
-  <button id="more" style="display:none">Load more</button>
-  <p class="hint" id="hint"></p>
-</main>
-<div id="toast">Copied</div>
-<script>
-let ALL=[], filtered=[], shown=0; const PAGE=120;
-const qEl=document.getElementById('q'), packEl=document.getElementById('pack'),
-      grid=document.getElementById('grid'), countEl=document.getElementById('count'),
-      moreBtn=document.getElementById('more'), toast=document.getElementById('toast');
-function showToast(t){ toast.textContent=t; toast.style.display='block'; setTimeout(()=>toast.style.display='none',1500); }
-function copyId(id){ const done=()=>showToast('Copied ID: '+id);
-  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(id).then(done).catch(()=>fallback()); } else fallback();
-  function fallback(){ const ta=document.createElement('textarea'); ta.value=id; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); done(); } }
-function cardHTML(e){
-  const name=e.name||'Unnamed';
-  const media=e.webm
-    ? `<video muted loop playsinline preload="none" poster="${e.thumb||''}"><source src="${e.webm}" type="video/webm"></video>`
-    : (e.thumb?`<img loading="lazy" src="${e.thumb}" alt="${name}">`:`<span style="font-size:42px">${e.alt||'❓'}</span>`);
-  return `<div class="card" data-id="${e.id}">
-    <div class="media">${media}</div>
-    <div class="name">${name}</div>
-    <div class="pack">${e.pack}</div>
-    <div class="id">${e.id}</div>
-    <button class="copy" data-copy="${e.id}">Copy ID</button>
-  </div>`; }
-function render(reset){
-  if(reset){ grid.innerHTML=''; shown=0; }
-  const slice=filtered.slice(shown, shown+PAGE);
-  grid.insertAdjacentHTML('beforeend', slice.map(cardHTML).join(''));
-  shown+=slice.length;
-  countEl.textContent = filtered.length
-    ? `Showing ${shown} of ${filtered.length} emojis` + (filtered.length>shown?' — tap Load more for more':'')
-    : 'No emojis found. Try another word, or clear the pack filter.';
-  moreBtn.style.display = shown<filtered.length ? 'block':'none';
-  grid.querySelectorAll('.card').forEach(c=>{
-    const v=c.querySelector('video');
-    if(v){
-      c.addEventListener('mouseenter',()=>v.play().catch(()=>{}));
-      c.addEventListener('mouseleave',()=>{v.pause(); v.currentTime=0;});
-      // Touch: tapping the animation itself plays/pauses it instead of copying the ID.
-      v.closest('.media').addEventListener('click',ev=>{ ev.stopPropagation(); if(v.paused){ v.play().catch(()=>{}); } else { v.pause(); } });
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Telegram Emoji Search</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          },
+          colors: {
+            tg: {
+              bg: '#0e1621',
+              surface: '#17212b',
+              elevated: '#1f2c3a',
+              input: '#242f3d',
+              border: '#2b394a',
+              accent: '#2aabee',
+              accentHover: '#229ed9',
+              text: '#f5f5f5',
+              muted: '#7f91a4',
+              subtle: '#5f7a90'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
-    c.addEventListener('click',ev=>{ if(ev.target.closest('button')) return; copyId(c.dataset.id); });
-  });
-  grid.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',ev=>{ev.stopPropagation(); copyId(b.dataset.copy);}));
-}
-function apply(){
-  const q=qEl.value.trim().toLowerCase(), pack=packEl.value;
-  const words=q.split(/\s+/).filter(Boolean);
-  filtered=ALL.filter(e=>{
-    if(pack && e.pack!==pack) return false;
-    if(!words.length) return true;
-    const hay=((e.name||'')+' '+(e.alt||'')+' '+e.pack+' '+e.id).toLowerCase();
-    return words.every(w=>hay.includes(w));
-  });
-  render(true);
-}
-fetch('emojis.json?v=20261027e').then(r=>r.json()).then(data=>{
-  ALL=data;
-  [...new Set(data.map(e=>e.pack))].sort().forEach(p=>{ const o=document.createElement('option'); o.value=p; o.textContent=`${p} (${data.filter(e=>e.pack===p).length})`; packEl.appendChild(o); });
-  document.getElementById('hint').textContent=`${data.length} emojis loaded. Unnamed emojis can still be found by pack or alt.`;
-  apply();
-}).catch(()=>{ countEl.textContent='Could not load emojis.json — make sure it sits next to index.html.'; });
-qEl.addEventListener('input',apply); packEl.addEventListener('change',apply);
-moreBtn.addEventListener('click',()=>render(false));
-</script>
+    body {
+      background-color: #0e1621;
+      color: #f5f5f5;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      overflow-x: hidden;
+    }
+    /* Custom scrollbar matching Telegram Desktop */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0e1621;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #242f3d;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #344559;
+    }
+
+    /* Subtle checkerboard pattern on hover to inspect transparency */
+    .media-stage {
+      background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 0);
+      background-size: 12px 12px;
+      transition: background-color 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .emoji-card:hover .media-stage {
+      background-color: rgba(36, 47, 61, 0.55);
+    }
+    .emoji-card {
+      transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-color 0.18s ease,
+                  background-color 0.18s ease,
+                  box-shadow 0.18s ease;
+    }
+    .emoji-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.38);
+    }
+    .emoji-card:active {
+      transform: translateY(0) scale(0.985);
+    }
+
+    /* Copied state flash ring */
+    .card-copied {
+      border-color: #2aabee !important;
+      box-shadow: 0 0 0 2px rgba(42, 171, 238, 0.35) !important;
+    }
+
+    /* Shimmer loading skeleton */
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #17212b 25%, #242f3d 50%, #17212b 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+
+    /* Highlighted search match */
+    mark.match {
+      background: rgba(42, 171, 238, 0.22);
+      color: #6fd0ff;
+      border-radius: 3px;
+      padding: 0 2px;
+    }
+
+    /* Dynamic Grid Densities */
+    .grid-comfortable {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+      gap: 14px;
+    }
+    .grid-compact {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 640px) {
+      .grid-comfortable {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .grid-compact {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col selection:bg-tg-accent selection:text-white">
+
+  <!-- Sticky Glassmorphic Header -->
+  <header class="sticky top-0 z-30 bg-tg-surface/90 backdrop-blur-md border-b border-tg-border/80 shadow-lg">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
+      
+      <!-- Top Bar: Brand, Stats & Utility Controls -->
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <!-- Telegram-inspired Badge Icon -->
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-tg-accent to-blue-600 flex items-center justify-center shadow-md shadow-tg-accent/20 shrink-0">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2L11 13"></path>
+              <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white truncate">Telegram Emoji Search</h1>
+              <span id="totalBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-tg-input text-tg-accent border border-tg-border">
+                Loading…
+              </span>
+            </div>
+            <p class="hidden sm:block text-xs text-tg-muted truncate">
+              Instant search by name, pack, alt emoji, or ID — click any card to copy in your preferred format.
+            </p>
+          </div>
+        </div>
+
+        <!-- Right Controls: Copy Format Preset, Grid Density & JSON Loader -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <!-- Copy Format Selector -->
+          <div class="flex items-center bg-tg-input rounded-xl p-1 border border-tg-border/70" title="Choose what clicking a card copies to clipboard">
+            <span class="text-[11px] font-medium text-tg-muted px-2 hidden md:inline">Copy as:</span>
+            <button type="button" data-format="id" class="format-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-colors bg-tg-accent text-white">
+              Raw ID
+            </button>
+            <button type="button" data-format="html" class="format-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-colors text-tg-muted hover:text-white">
+              &lt;tg-emoji&gt;
+            </button>
+            <button type="button" data-format="md" class="format-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-colors text-tg-muted hover:text-white">
+              Markdown
+            </button>
+          </div>
+
+          <!-- Grid Density Toggle -->
+          <button id="densityBtn" type="button" class="p-2 rounded-xl bg-tg-input hover:bg-tg-elevated border border-tg-border/70 text-tg-muted hover:text-white transition-colors" title="Toggle grid density">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+          </button>
+
+          <!-- Local JSON file import trigger (helpful when testing locally or custom packs) -->
+          <label class="cursor-pointer p-2 rounded-xl bg-tg-input hover:bg-tg-elevated border border-tg-border/70 text-tg-muted hover:text-white transition-colors flex items-center gap-1.5 text-xs font-medium" title="Load a custom emojis.json file from disk">
+            <svg class="w-4 h-4 text-tg-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span class="hidden lg:inline">Load JSON</span>
+            <input id="fileInput" type="file" accept=".json,application/json" class="hidden">
+          </label>
+        </div>
+      </div>
+
+      <!-- Search & Filter Row -->
+      <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+        <!-- Search Input with Clear & Shortcut Hint -->
+        <div class="relative sm:col-span-7 lg:col-span-8">
+          <svg class="w-4 h-4 text-tg-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            id="q"
+            type="search"
+            placeholder="Search emojis by name, pack, alt (🔥), or ID…"
+            autocomplete="off"
+            spellcheck="false"
+            class="w-full pl-10 pr-20 py-2.5 rounded-xl bg-tg-input text-white placeholder-tg-muted text-sm sm:text-base border border-tg-border/70 focus:outline-none focus:border-tg-accent focus:ring-2 focus:ring-tg-accent/30 transition-all"
+          >
+          <div class="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+            <button id="clearSearchBtn" type="button" class="hidden p-1 rounded-lg text-tg-muted hover:text-white hover:bg-tg-elevated transition-colors" title="Clear search (Esc)">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <kbd class="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-tg-muted bg-tg-surface rounded border border-tg-border">/</kbd>
+          </div>
+        </div>
+
+        <!-- Pack Dropdown Filter -->
+        <div class="relative sm:col-span-5 lg:col-span-4">
+          <select
+            id="pack"
+            aria-label="Filter by emoji pack"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-tg-input text-white text-sm sm:text-base border border-tg-border/70 focus:outline-none focus:border-tg-accent focus:ring-2 focus:ring-tg-accent/30 cursor-pointer transition-all"
+          >
+            <option value="">All packs</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Quick Scope Tabs & Sort Bar -->
+      <div class="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-tg-border/50 overflow-x-auto no-scrollbar">
+        <div class="flex items-center gap-1.5 shrink-0" role="tablist">
+          <button type="button" data-tab="all" class="scope-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-tg-accent/15 text-tg-accent border border-tg-accent/30">
+            All Emojis
+          </button>
+          <button type="button" data-tab="favs" class="scope-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-tg-muted hover:text-white hover:bg-tg-input border border-transparent flex items-center gap-1">
+            <span>★ Favorites</span>
+            <span id="favCountBadge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-tg-input text-tg-muted">0</span>
+          </button>
+          <button type="button" data-tab="recent" class="scope-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-tg-muted hover:text-white hover:bg-tg-input border border-transparent flex items-center gap-1">
+            <span>🕘 Recent</span>
+            <span id="recentCountBadge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-tg-input text-tg-muted">0</span>
+          </button>
+          <button type="button" data-tab="animated" class="scope-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-tg-muted hover:text-white hover:bg-tg-input border border-transparent">
+            🎬 Animated
+          </button>
+          <button type="button" data-tab="static" class="scope-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-tg-muted hover:text-white hover:bg-tg-input border border-transparent">
+            🖼️ Static
+          </button>
+        </div>
+
+        <!-- Sort & Autoplay Controls -->
+        <div class="flex items-center gap-2 shrink-0">
+          <label class="flex items-center gap-1.5 text-xs text-tg-muted cursor-pointer select-none hover:text-white transition-colors" title="Automatically play visible WebM emoji animations">
+            <input id="autoplayToggle" type="checkbox" class="rounded bg-tg-input border-tg-border text-tg-accent focus:ring-0 cursor-pointer">
+            <span class="hidden sm:inline">Autoplay WebM</span>
+          </label>
+          <select id="sortSelect" aria-label="Sort emojis" class="px-2.5 py-1 rounded-lg bg-tg-input text-xs text-tg-muted hover:text-white border border-tg-border/70 focus:outline-none cursor-pointer">
+            <option value="default">Sort: Default</option>
+            <option value="name">Sort: Name (A–Z)</option>
+            <option value="pack">Sort: Pack (A–Z)</option>
+            <option value="id">Sort: ID</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Fallback / Demo Data Notice Banner (Only shown if emojis.json was unreachable) -->
+  <div id="demoBanner" class="hidden bg-amber-500/10 border-b border-amber-500/30 text-amber-200 text-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span>
+          <strong>Preview Mode:</strong> <code class="font-mono text-amber-100">emojis.json</code> was not found in the same directory, so sample Telegram emojis are displayed. Drop your <code class="font-mono text-amber-100">emojis.json</code> anywhere on the page or click <strong>Load JSON</strong> above.
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5">
+    
+    <!-- Status & Active Filter Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+      <div id="count" class="text-xs sm:text-sm text-tg-muted font-medium">
+        Initializing emoji index…
+      </div>
+      <div id="activeFiltersRow" class="hidden items-center gap-2 flex-wrap">
+        <button id="resetAllBtn" type="button" class="text-xs text-tg-accent hover:underline flex items-center gap-1">
+          <span>Reset filters</span>
+          <span>×</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Emoji Grid -->
+    <div id="grid" class="grid-comfortable" role="region" aria-live="polite"></div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden py-16 text-center max-w-md mx-auto">
+      <div class="w-16 h-16 rounded-2xl bg-tg-surface border border-tg-border flex items-center justify-center mx-auto mb-4 text-3xl">
+        🔍
+      </div>
+      <h2 class="text-base font-semibold text-white mb-1">No matching emojis found</h2>
+      <p id="emptyStateSub" class="text-xs sm:text-sm text-tg-muted mb-5">
+        Try searching for a different keyword, clearing the pack filter, or switching tabs.
+      </p>
+      <button id="emptyResetBtn" type="button" class="px-4 py-2 rounded-xl bg-tg-accent hover:bg-tg-accentHover text-white text-xs sm:text-sm font-semibold transition-colors shadow-lg shadow-tg-accent/20">
+        Clear all filters
+      </button>
+    </div>
+
+    <!-- Pagination / Infinite Scroll Trigger -->
+    <div class="mt-8 flex flex-col items-center justify-center gap-3">
+      <button
+        id="more"
+        type="button"
+        style="display:none"
+        class="px-6 py-2.5 rounded-xl bg-tg-accent hover:bg-tg-accentHover active:scale-95 text-white text-sm font-semibold shadow-lg shadow-tg-accent/20 transition-all"
+      >
+        Load more emojis
+      </button>
+      <p id="hint" class="text-xs text-tg-muted text-center max-w-xl leading-relaxed"></p>
+    </div>
+  </main>
+
+  <!-- Emoji Inspector Modal -->
+  <div id="inspectorModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="bg-tg-surface border border-tg-border rounded-2xl max-w-md w-full p-5 shadow-2xl relative overflow-hidden">
+      <div class="flex items-start justify-between gap-3 mb-4">
+        <div class="min-w-0">
+          <h3 id="modalTitle" class="text-base font-bold text-white truncate">Emoji Details</h3>
+          <p id="modalPack" class="text-xs text-tg-accent cursor-pointer hover:underline truncate"></p>
+        </div>
+        <button id="closeModalBtn" type="button" class="p-1.5 rounded-lg text-tg-muted hover:text-white hover:bg-tg-input transition-colors">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Large Media Preview -->
+      <div id="modalMedia" class="media-stage h-36 rounded-xl border border-tg-border/70 flex items-center justify-center mb-4 p-4"></div>
+
+      <!-- Copy Snippets List -->
+      <div class="space-y-2.5 text-xs">
+        <div class="bg-tg-bg/80 border border-tg-border/70 rounded-xl p-2.5 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <span class="text-[10px] uppercase tracking-wider text-tg-muted block">Custom Emoji ID</span>
+            <code id="modalIdCode" class="font-mono text-white truncate block"></code>
+          </div>
+          <button type="button" data-modal-copy="id" class="px-3 py-1.5 rounded-lg bg-tg-accent hover:bg-tg-accentHover text-white font-semibold shrink-0 transition-colors">
+            Copy ID
+          </button>
+        </div>
+
+        <div class="bg-tg-bg/80 border border-tg-border/70 rounded-xl p-2.5 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <span class="text-[10px] uppercase tracking-wider text-tg-muted block">Telegram Bot HTML</span>
+            <code id="modalHtmlCode" class="font-mono text-emerald-300 truncate block"></code>
+          </div>
+          <button type="button" data-modal-copy="html" class="px-3 py-1.5 rounded-lg bg-tg-input hover:bg-tg-elevated text-white font-medium shrink-0 transition-colors">
+            Copy HTML
+          </button>
+        </div>
+
+        <div class="bg-tg-bg/80 border border-tg-border/70 rounded-xl p-2.5 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <span class="text-[10px] uppercase tracking-wider text-tg-muted block">Telegram MarkdownV2</span>
+            <code id="modalMdCode" class="font-mono text-sky-300 truncate block"></code>
+          </div>
+          <button type="button" data-modal-copy="md" class="px-3 py-1.5 rounded-lg bg-tg-input hover:bg-tg-elevated text-white font-medium shrink-0 transition-colors">
+            Copy MD
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-tg-border/60 flex items-center justify-between">
+        <button id="modalFilterPackBtn" type="button" class="text-xs text-tg-accent hover:underline font-medium">
+          View all in this pack →
+        </button>
+        <button id="modalFavBtn" type="button" class="px-3 py-1.5 rounded-lg bg-tg-input hover:bg-tg-elevated text-xs font-medium text-white transition-colors">
+          ★ Toggle Favorite
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Drag-and-Drop Overlay for JSON file -->
+  <div id="dropOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-tg-bg/85 backdrop-blur-md border-4 border-dashed border-tg-accent m-3 rounded-3xl pointer-events-none">
+    <div class="text-center p-6">
+      <div class="text-5xl mb-3">📂</div>
+      <h3 class="text-xl font-bold text-white mb-1">Drop emojis.json to load</h3>
+      <p class="text-sm text-tg-muted">Instant client-side indexing</p>
+    </div>
+  </div>
+
+  <!-- Floating Toast Notification -->
+  <div
+    id="toast"
+    role="status"
+    aria-live="polite"
+    class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-3 transition-all duration-200 px-4 py-2.5 rounded-xl bg-tg-input/95 backdrop-blur-md border border-tg-accent/40 text-white text-xs sm:text-sm font-medium shadow-2xl flex items-center gap-2.5 max-w-[92vw]"
+  >
+    <span class="w-5 h-5 rounded-full bg-tg-accent/20 text-tg-accent flex items-center justify-center shrink-0 text-xs">✓</span>
+    <span id="toastText" class="truncate">Copied</span>
+  </div>
+
+  <script>
+    /**
+     * Senior UX/UI & Performance Refactor:
+     * 1. Eliminates duplicate event listener leaks via single-root Event Delegation on #grid.
+     * 2. Pre-indexes search haystack and pack counts in O(N) time during ingestion.
+     * 3. Adds developer copy presets (Raw ID, <tg-emoji> HTML, MarkdownV2), Favorites & Recent history.
+     * 4. Preserves exact compatibility with `emojis.json?v=20261027e` while providing a rich fallback demo & drag-and-drop loader.
+     */
+    const PAGE = 120;
+    const STORAGE_KEYS = {
+      FAVS: 'tg_emoji_favs_v1',
+      RECENT: 'tg_emoji_recent_v1',
+      FORMAT: 'tg_emoji_copy_format_v1',
+      DENSITY: 'tg_emoji_density_v1'
+    };
+
+    // Application State
+    let ALL = [];
+    let BY_ID = new Map();
+    let filtered = [];
+    let shown = 0;
+    let activeTab = 'all'; // 'all' | 'favs' | 'recent' | 'animated' | 'static'
+    let copyFormat = localStorage.getItem(STORAGE_KEYS.FORMAT) || 'id'; // 'id' | 'html' | 'md'
+    let gridDensity = localStorage.getItem(STORAGE_KEYS.DENSITY) || 'comfortable';
+    let favorites = new Set(JSON.parse(localStorage.getItem(STORAGE_KEYS.FAVS) || '[]'));
+    let recentIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.RECENT) || '[]');
+    let inspectedEmoji = null;
+    let toastTimer = null;
+
+    // DOM References
+    const qEl = document.getElementById('q');
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    const packEl = document.getElementById('pack');
+    const sortSelect = document.getElementById('sortSelect');
+    const autoplayToggle = document.getElementById('autoplayToggle');
+    const grid = document.getElementById('grid');
+    const countEl = document.getElementById('count');
+    const totalBadge = document.getElementById('totalBadge');
+    const moreBtn = document.getElementById('more');
+    const hintEl = document.getElementById('hint');
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toastText');
+    const emptyState = document.getElementById('emptyState');
+    const activeFiltersRow = document.getElementById('activeFiltersRow');
+    const favCountBadge = document.getElementById('favCountBadge');
+    const recentCountBadge = document.getElementById('recentCountBadge');
+    const densityBtn = document.getElementById('densityBtn');
+    const demoBanner = document.getElementById('demoBanner');
+
+    // Modal DOM References
+    const inspectorModal = document.getElementById('inspectorModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalPack = document.getElementById('modalPack');
+    const modalMedia = document.getElementById('modalMedia');
+    const modalIdCode = document.getElementById('modalIdCode');
+    const modalHtmlCode = document.getElementById('modalHtmlCode');
+    const modalMdCode = document.getElementById('modalMdCode');
+    const modalFavBtn = document.getElementById('modalFavBtn');
+
+    // Built-in fallback demo items if emojis.json isn't served alongside index.html
+    const FALLBACK_DEMO_DATA = [
+      { id: '5368324170671202286', name: 'Telegram Premium Star', alt: '⭐', pack: 'TelegramOfficial', thumb: '' },
+      { id: '5370869711888194012', name: 'Blue Checkmark Verified', alt: '☑️', pack: 'TelegramOfficial', thumb: '' },
+      { id: '5210952531676504517', name: 'Fire Flame Glow', alt: '🔥', pack: 'AnimatedReactions', thumb: '' },
+      { id: '5213205860498547192', name: 'Rocket Launch Boost', alt: '🚀', pack: 'AnimatedReactions', thumb: '' },
+      { id: '5427009714745517609', name: 'Party Popper Confetti', alt: '🎉', pack: 'CelebrationPack', thumb: '' },
+      { id: '5449683594425410231', name: 'Sparkling Heart Beat', alt: '💖', pack: 'AnimatedReactions', thumb: '' },
+      { id: '5397782910516340811', name: 'Coding Duck Debugging', alt: '🦆', pack: 'UtyaDuck', thumb: '' },
+      { id: '5397912840122149004', name: 'Duck Sipping Coffee', alt: '☕', pack: 'UtyaDuck', thumb: '' },
+      { id: '5460781290441872301', name: 'Crystal Gem Diamond', alt: '💎', pack: 'TONCrystal', thumb: '' },
+      { id: '5461102983440192834', name: 'Lightning High Voltage', alt: '⚡', pack: 'TONCrystal', thumb: '' },
+      { id: '5312094812093841092', name: 'Thumbs Up Approve', alt: '👍', pack: 'ClassicGestures', thumb: '' },
+      { id: '5312491827391827391', name: 'Mind Blown Explode', alt: '🤯', pack: 'ClassicGestures', thumb: '' },
+      { id: '5488192837192837192', name: 'Neon Cyber Crown', alt: '👑', pack: 'VIPBadges', thumb: '' },
+      { id: '5488991827391827110', name: 'Golden Trophy Cup', alt: '🏆', pack: 'VIPBadges', thumb: '' },
+      { id: '5299102938475610293', name: 'Money Bag Stonks', alt: '💰', pack: 'CryptoStickers', thumb: '' },
+      { id: '5299883746591827364', name: 'Chart Trending Up', alt: '📈', pack: 'CryptoStickers', thumb: '' },
+      { id: '5355123987123987123', name: 'Eyes Looking Side', alt: '👀', pack: 'ClassicGestures', thumb: '' },
+      { id: '5355998877665544332', name: 'Hundred Points 100', alt: '💯', pack: 'AnimatedReactions', thumb: '' }
+    ];
+
+    // Escape HTML to prevent XSS when rendering names or search highlights
+    function escapeHTML(str) {
+      return String(str || '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch]));
+    }
+
+    // Highlight matching search terms safely inside text
+    function highlightMatch(text, words) {
+      const safe = escapeHTML(text);
+      if (!words || !words.length) return safe;
+      const pattern = words
+        .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+      if (!pattern) return safe;
+      const regex = new RegExp(`(${pattern})`, 'gi');
+      return safe.replace(regex, '<mark class="match">$1</mark>');
+    }
+
+    // Format output payload based on selected Copy Format preset
+    function formatEmojiPayload(emoji, formatOverride) {
+      const fmt = formatOverride || copyFormat;
+      const id = emoji.id;
+      const alt = emoji.alt || '⭐';
+      if (fmt === 'html') {
+        return `<tg-emoji emoji-id="${id}">${alt}</tg-emoji>`;
+      }
+      if (fmt === 'md') {
+        return `![${alt}](tg://emoji?id=${id})`;
+      }
+      return String(id);
+    }
+
+    // Show non-intrusive toast notification
+    function showToast(message) {
+      toastText.textContent = message;
+      toast.classList.remove('opacity-0', 'translate-y-3');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-3');
+        toast.classList.remove('opacity-100', 'translate-y-0');
+      }, 1800);
+    }
+
+    // Reliable cross-environment clipboard helper (uses execCommand fallback for iframe support)
+    function copyEmoji(id, formatOverride, cardEl) {
+      const emoji = BY_ID.get(String(id)) || { id, alt: '⭐', name: '' };
+      const payload = formatEmojiPayload(emoji, formatOverride);
+
+      const onComplete = () => {
+        // Track in Recent History
+        recentIds = [String(id), ...recentIds.filter(x => x !== String(id))].slice(0, 60);
+        try {
+          localStorage.setItem(STORAGE_KEYS.RECENT, JSON.stringify(recentIds));
+        } catch (_) {}
+        updateBadges();
+
+        // Visual feedback on card
+        if (cardEl) {
+          cardEl.classList.add('card-copied');
+          setTimeout(() => cardEl.classList.remove('card-copied'), 650);
+        }
+
+        const label = (formatOverride || copyFormat).toUpperCase();
+        showToast(`Copied ${label}: ${payload}`);
+      };
+
+      const fallbackCopy = () => {
+        const ta = document.createElement('textarea');
+        ta.value = payload;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+        } catch (_) {}
+        ta.remove();
+        onComplete();
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).then(onComplete).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
+    }
+
+    // Toggle favorite status for an emoji ID
+    function toggleFavorite(id, btnEl) {
+      const key = String(id);
+      if (favorites.has(key)) {
+        favorites.delete(key);
+        showToast('Removed from Favorites');
+      } else {
+        favorites.add(key);
+        showToast('Added to ★ Favorites');
+      }
+      try {
+        localStorage.setItem(STORAGE_KEYS.FAVS, JSON.stringify([...favorites]));
+      } catch (_) {}
+      updateBadges();
+
+      if (btnEl) {
+        const isFav = favorites.has(key);
+        btnEl.classList.toggle('text-amber-400', isFav);
+        btnEl.classList.toggle('text-tg-subtle', !isFav);
+        btnEl.textContent = isFav ? '★' : '☆';
+      }
+      if (activeTab === 'favs') {
+        apply();
+      }
+    }
+
+    function updateBadges() {
+      favCountBadge.textContent = favorites.size;
+      recentCountBadge.textContent = recentIds.length;
+    }
+
+    // Generate HTML for a single emoji card
+    function cardHTML(e, queryWords) {
+      const name = e.name || 'Unnamed';
+      const isFav = favorites.has(String(e.id));
+      const shouldAutoplay = autoplayToggle.checked;
+
+      let mediaContent = '';
+      if (e.webm) {
+        mediaContent = `<video muted loop playsinline preload="${shouldAutoplay ? 'metadata' : 'none'}" ${shouldAutoplay ? 'autoplay' : ''} poster="${escapeHTML(e.thumb || '')}" class="max-w-full max-h-full w-auto h-auto object-contain pointer-events-none"><source src="${escapeHTML(e.webm)}" type="video/webm"></video>`;
+      } else if (e.thumb) {
+        mediaContent = `<img loading="lazy" src="${escapeHTML(e.thumb)}" alt="${escapeHTML(name)}" class="max-w-full max-h-full w-auto h-auto object-contain select-none">`;
+      } else {
+        mediaContent = `<span class="text-4xl sm:text-5xl select-none">${escapeHTML(e.alt || '❓')}</span>`;
+      }
+
+      const badgeTag = e.webm
+        ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-tg-accent/15 text-tg-accent">WebM</span>`
+        : (e.alt ? `<span class="text-xs opacity-80">${escapeHTML(e.alt)}</span>` : '');
+
+      return `
+        <article class="emoji-card group relative rounded-2xl bg-tg-surface hover:bg-tg-elevated border border-tg-border/60 p-2.5 sm:p-3 flex flex-col gap-1.5 cursor-pointer select-none" data-id="${escapeHTML(e.id)}">
+          <!-- Top Micro Action Bar -->
+          <div class="flex items-center justify-between gap-1 z-10">
+            <div class="flex items-center gap-1 min-w-0">
+              ${badgeTag}
+            </div>
+            <div class="flex items-center gap-0.5">
+              <button type="button" data-action="inspect" data-id="${escapeHTML(e.id)}" class="p-1 rounded-lg text-tg-subtle hover:text-white hover:bg-tg-input transition-colors text-xs" title="Inspect details & Bot code">
+                ⓘ
+              </button>
+              <button type="button" data-action="fav" data-id="${escapeHTML(e.id)}" class="p-1 rounded-lg hover:bg-tg-input transition-colors text-sm leading-none ${isFav ? 'text-amber-400' : 'text-tg-subtle hover:text-amber-300'}" title="Toggle favorite">
+                ${isFav ? '★' : '☆'}
+              </button>
+            </div>
+          </div>
+
+          <!-- Media Preview Stage -->
+          <div class="media-stage h-20 sm:h-24 rounded-xl flex items-center justify-center overflow-hidden p-2">
+            ${mediaContent}
+          </div>
+
+          <!-- Metadata -->
+          <div class="text-center mt-0.5 flex-1 flex flex-col justify-between">
+            <div class="name text-xs sm:text-[13px] font-medium text-white leading-snug line-clamp-2 break-words" title="${escapeHTML(name)}">
+              ${highlightMatch(name, queryWords)}
+            </div>
+            <div class="mt-1 space-y-0.5">
+              <button type="button" data-action="pack" data-pack="${escapeHTML(e.pack)}" class="pack text-[11px] text-tg-muted hover:text-tg-accent truncate max-w-full block mx-auto transition-colors" title="Filter by pack: ${escapeHTML(e.pack)}">
+                ${highlightMatch(e.pack || 'Unknown pack', queryWords)}
+              </button>
+              <div class="id font-mono text-[10px] text-tg-subtle truncate hidden sm:block" title="ID: ${escapeHTML(e.id)}">
+                ${highlightMatch(e.id, queryWords)}
+              </div>
+            </div>
+          </div>
+
+          <!-- Primary Copy Button -->
+          <button type="button" data-copy="${escapeHTML(e.id)}" class="copy mt-1 w-full py-1.5 px-2 rounded-xl bg-tg-accent hover:bg-tg-accentHover active:scale-95 text-white text-xs font-semibold transition-all shadow-sm">
+            Copy ${copyFormat === 'id' ? 'ID' : copyFormat.toUpperCase()}
+          </button>
+        </article>
+      `;
+    }
+
+    // Render skeleton placeholders while fetching JSON
+    function renderSkeletons() {
+      grid.innerHTML = Array.from({ length: 18 }).map(() => `
+        <div class="rounded-2xl bg-tg-surface border border-tg-border/50 p-3 flex flex-col gap-2">
+          <div class="h-24 rounded-xl skeleton"></div>
+          <div class="h-3.5 w-3/4 mx-auto rounded skeleton"></div>
+          <div class="h-2.5 w-1/2 mx-auto rounded skeleton"></div>
+          <div class="h-7 w-full rounded-xl skeleton mt-1"></div>
+        </div>
+      `).join('');
+    }
+
+    // Render current slice of filtered emojis
+    function render(reset) {
+      if (reset) {
+        grid.innerHTML = '';
+        shown = 0;
+      }
+
+      const q = qEl.value.trim().toLowerCase();
+      const queryWords = q.split(/\s+/).filter(Boolean);
+      const slice = filtered.slice(shown, shown + PAGE);
+
+      if (slice.length > 0) {
+        grid.insertAdjacentHTML('beforeend', slice.map(e => cardHTML(e, queryWords)).join(''));
+        shown += slice.length;
+      }
+
+      // Toggle Empty State vs Results
+      const hasAny = filtered.length > 0;
+      emptyState.classList.toggle('hidden', hasAny);
+      grid.classList.toggle('hidden', !hasAny);
+
+      // Update status count text
+      if (hasAny) {
+        countEl.textContent = `Showing ${shown.toLocaleString()} of ${filtered.length.toLocaleString()} emojis` +
+          (filtered.length > shown ? ' — scroll or click Load more' : '');
+      } else {
+        countEl.textContent = '0 matching emojis';
+      }
+
+      moreBtn.style.display = shown < filtered.length ? 'block' : 'none';
+
+      // Show "Reset filters" button if any filter is active
+      const hasActiveFilters = Boolean(q || packEl.value || activeTab !== 'all' || sortSelect.value !== 'default');
+      activeFiltersRow.classList.toggle('hidden', !hasActiveFilters);
+      activeFiltersRow.classList.toggle('flex', hasActiveFilters);
+    }
+
+    // Filter and sort dataset
+    function apply() {
+      const q = qEl.value.trim().toLowerCase();
+      const pack = packEl.value;
+      const sortBy = sortSelect.value;
+      const words = q.split(/\s+/).filter(Boolean);
+
+      clearSearchBtn.classList.toggle('hidden', !qEl.value.length);
+
+      let baseList = ALL;
+      if (activeTab === 'favs') {
+        baseList = ALL.filter(e => favorites.has(String(e.id)));
+      } else if (activeTab === 'recent') {
+        baseList = recentIds.map(id => BY_ID.get(String(id))).filter(Boolean);
+      } else if (activeTab === 'animated') {
+        baseList = ALL.filter(e => Boolean(e.webm));
+      } else if (activeTab === 'static') {
+        baseList = ALL.filter(e => !e.webm);
+      }
+
+      filtered = baseList.filter(e => {
+        if (pack && e.pack !== pack) return false;
+        if (!words.length) return true;
+        return words.every(w => e._hay.includes(w));
+      });
+
+      if (sortBy === 'name') {
+        filtered.sort((a, b) => (a.name || 'Unnamed').localeCompare(b.name || 'Unnamed'));
+      } else if (sortBy === 'pack') {
+        filtered.sort((a, b) => (a.pack || '').localeCompare(b.pack || ''));
+      } else if (sortBy === 'id') {
+        filtered.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      }
+
+      render(true);
+    }
+
+    // Open Inspector Modal for a specific emoji
+    function openInspector(id) {
+      const e = BY_ID.get(String(id));
+      if (!e) return;
+      inspectedEmoji = e;
+
+      modalTitle.textContent = e.name || 'Unnamed Emoji';
+      modalPack.textContent = `Pack: ${e.pack || 'Unknown'}`;
+
+      if (e.webm) {
+        modalMedia.innerHTML = `<video muted loop autoplay playsinline poster="${escapeHTML(e.thumb || '')}" class="max-h-28 w-auto object-contain"><source src="${escapeHTML(e.webm)}" type="video/webm"></video>`;
+      } else if (e.thumb) {
+        modalMedia.innerHTML = `<img src="${escapeHTML(e.thumb)}" alt="${escapeHTML(e.name || '')}" class="max-h-28 w-auto object-contain">`;
+      } else {
+        modalMedia.innerHTML = `<span class="text-6xl">${escapeHTML(e.alt || '❓')}</span>`;
+      }
+
+      modalIdCode.textContent = formatEmojiPayload(e, 'id');
+      modalHtmlCode.textContent = formatEmojiPayload(e, 'html');
+      modalMdCode.textContent = formatEmojiPayload(e, 'md');
+
+      const isFav = favorites.has(String(e.id));
+      modalFavBtn.textContent = isFav ? '★ Favorited' : '☆ Add to Favorites';
+
+      inspectorModal.classList.remove('hidden');
+      inspectorModal.classList.add('flex');
+    }
+
+    function closeInspector() {
+      inspectorModal.classList.add('hidden');
+      inspectorModal.classList.remove('flex');
+      modalMedia.innerHTML = '';
+      inspectedEmoji = null;
+    }
+
+    // Ingest and index emoji array in O(N) time
+    function hydrateData(data, isDemo = false) {
+      ALL = (Array.isArray(data) ? data : []).map(item => ({
+        ...item,
+        _hay: ((item.name || '') + ' ' + (item.alt || '') + ' ' + (item.pack || '') + ' ' + (item.id || '')).toLowerCase()
+      }));
+
+      BY_ID.clear();
+      const packCounts = new Map();
+
+      for (const e of ALL) {
+        BY_ID.set(String(e.id), e);
+        if (e.pack) {
+          packCounts.set(e.pack, (packCounts.get(e.pack) || 0) + 1);
+        }
+      }
+
+      // Populate Pack Select Dropdown
+      packEl.innerHTML = '<option value="">All packs</option>';
+      [...packCounts.keys()].sort().forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = `${p} (${packCounts.get(p)})`;
+        packEl.appendChild(opt);
+      });
+
+      totalBadge.textContent = `${ALL.length.toLocaleString()} emojis`;
+      hintEl.textContent = `${ALL.length.toLocaleString()} emojis indexed across ${packCounts.size.toLocaleString()} packs. Tip: Press "/" to search anytime, or click ⓘ on any card for Telegram Bot HTML/Markdown snippets.`;
+      demoBanner.classList.toggle('hidden', !isDemo);
+
+      updateBadges();
+      apply();
+    }
+
+    // Event Delegation on #grid (Prevents listener duplication on pagination)
+    grid.addEventListener('click', ev => {
+      const favBtn = ev.target.closest('[data-action="fav"]');
+      if (favBtn) {
+        ev.stopPropagation();
+        toggleFavorite(favBtn.dataset.id, favBtn);
+        return;
+      }
+
+      const inspectBtn = ev.target.closest('[data-action="inspect"]');
+      if (inspectBtn) {
+        ev.stopPropagation();
+        openInspector(inspectBtn.dataset.id);
+        return;
+      }
+
+      const packBtn = ev.target.closest('[data-action="pack"]');
+      if (packBtn) {
+        ev.stopPropagation();
+        packEl.value = packBtn.dataset.pack;
+        apply();
+        showToast(`Filtered pack: ${packBtn.dataset.pack}`);
+        return;
+      }
+
+      const copyBtn = ev.target.closest('[data-copy]');
+      if (copyBtn) {
+        ev.stopPropagation();
+        copyEmoji(copyBtn.dataset.copy, null, copyBtn.closest('.emoji-card'));
+        return;
+      }
+
+      const card = ev.target.closest('.emoji-card');
+      if (card) {
+        copyEmoji(card.dataset.id, null, card);
+      }
+    });
+
+    // Delegated Hover Preview for WebM Videos
+    grid.addEventListener('mouseover', ev => {
+      const card = ev.target.closest('.emoji-card');
+      if (!card) return;
+      const video = card.querySelector('video');
+      if (video && video.paused) {
+        video.play().catch(() => {});
+      }
+    });
+
+    grid.addEventListener('mouseout', ev => {
+      if (autoplayToggle.checked) return;
+      const card = ev.target.closest('.emoji-card');
+      if (!card || card.contains(ev.relatedTarget)) return;
+      const video = card.querySelector('video');
+      if (video) {
+        video.pause();
+        video.currentTime = 0;
+      }
+    });
+
+    // Search, Pack, Sort & Autoplay Listeners
+    qEl.addEventListener('input', apply);
+    packEl.addEventListener('change', apply);
+    sortSelect.addEventListener('change', apply);
+    autoplayToggle.addEventListener('change', () => render(true));
+    moreBtn.addEventListener('click', () => render(false));
+
+    clearSearchBtn.addEventListener('click', () => {
+      qEl.value = '';
+      qEl.focus();
+      apply();
+    });
+
+    function resetAllFilters() {
+      qEl.value = '';
+      packEl.value = '';
+      sortSelect.value = 'default';
+      setActiveTab('all');
+    }
+
+    document.getElementById('resetAllBtn').addEventListener('click', resetAllFilters);
+    document.getElementById('emptyResetBtn').addEventListener('click', resetAllFilters);
+
+    // Scope Tabs Switching
+    function setActiveTab(tabName) {
+      activeTab = tabName;
+      document.querySelectorAll('.scope-tab').forEach(btn => {
+        const isCurrent = btn.dataset.tab === tabName;
+        btn.className = isCurrent
+          ? 'scope-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all bg-tg-accent/15 text-tg-accent border border-tg-accent/30 flex items-center gap-1'
+          : 'scope-tab px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-tg-muted hover:text-white hover:bg-tg-input border border-transparent flex items-center gap-1';
+      });
+      apply();
+    }
+
+    document.querySelectorAll('.scope-tab').forEach(btn => {
+      btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+    });
+
+    // Copy Format Selector Buttons
+    function updateCopyFormatUI() {
+      document.querySelectorAll('.format-btn').forEach(btn => {
+        const active = btn.dataset.format === copyFormat;
+        btn.className = active
+          ? 'format-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-colors bg-tg-accent text-white'
+          : 'format-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-colors text-tg-muted hover:text-white';
+      });
+    }
+
+    document.querySelectorAll('.format-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        copyFormat = btn.dataset.format;
+        try {
+          localStorage.setItem(STORAGE_KEYS.FORMAT, copyFormat);
+        } catch (_) {}
+        updateCopyFormatUI();
+        render(true);
+        showToast(`Copy mode set to ${copyFormat.toUpperCase()}`);
+      });
+    });
+
+    // Grid Density Switcher
+    function applyDensityUI() {
+      grid.className = gridDensity === 'compact' ? 'grid-compact' : 'grid-comfortable';
+    }
+    densityBtn.addEventListener('click', () => {
+      gridDensity = gridDensity === 'comfortable' ? 'compact' : 'comfortable';
+      try {
+        localStorage.setItem(STORAGE_KEYS.DENSITY, gridDensity);
+      } catch (_) {}
+      applyDensityUI();
+      showToast(`Grid density: ${gridDensity}`);
+    });
+
+    // Modal Actions
+    document.getElementById('closeModalBtn').addEventListener('click', closeInspector);
+    inspectorModal.addEventListener('click', ev => {
+      if (ev.target === inspectorModal) closeInspector();
+    });
+    document.querySelectorAll('[data-modal-copy]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!inspectedEmoji) return;
+        copyEmoji(inspectedEmoji.id, btn.dataset.modalCopy);
+      });
+    });
+    document.getElementById('modalFilterPackBtn').addEventListener('click', () => {
+      if (!inspectedEmoji) return;
+      packEl.value = inspectedEmoji.pack || '';
+      closeInspector();
+      apply();
+    });
+    modalPack.addEventListener('click', () => {
+      if (!inspectedEmoji) return;
+      packEl.value = inspectedEmoji.pack || '';
+      closeInspector();
+      apply();
+    });
+    modalFavBtn.addEventListener('click', () => {
+      if (!inspectedEmoji) return;
+      toggleFavorite(inspectedEmoji.id);
+      const isFav = favorites.has(String(inspectedEmoji.id));
+      modalFavBtn.textContent = isFav ? '★ Favorited' : '☆ Add to Favorites';
+      render(true);
+    });
+
+    // Global Keyboard Shortcuts ('/' or Cmd/Ctrl+K to focus search, Esc to close modal or clear search)
+    window.addEventListener('keydown', ev => {
+      if ((ev.key === '/' || ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'k')) && document.activeElement !== qEl) {
+        ev.preventDefault();
+        qEl.focus();
+        qEl.select();
+      } else if (ev.key === 'Escape') {
+        if (!inspectorModal.classList.contains('hidden')) {
+          closeInspector();
+        } else if (qEl.value) {
+          qEl.value = '';
+          apply();
+        }
+      }
+    });
+
+    // Local JSON File Upload & Drag-and-Drop Support
+    function handleCustomJSONFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          hydrateData(parsed, false);
+          showToast(`Loaded ${parsed.length.toLocaleString()} emojis from ${file.name}`);
+        } catch (err) {
+          showToast('Invalid JSON file format');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    document.getElementById('fileInput').addEventListener('change', ev => {
+      handleCustomJSONFile(ev.target.files[0]);
+    });
+
+    const dropOverlay = document.getElementById('dropOverlay');
+    window.addEventListener('dragover', ev => {
+      ev.preventDefault();
+      dropOverlay.classList.remove('hidden');
+      dropOverlay.classList.add('flex');
+    });
+    window.addEventListener('dragleave', ev => {
+      if (ev.relatedTarget === null) {
+        dropOverlay.classList.add('hidden');
+        dropOverlay.classList.remove('flex');
+      }
+    });
+    window.addEventListener('drop', ev => {
+      ev.preventDefault();
+      dropOverlay.classList.add('hidden');
+      dropOverlay.classList.remove('flex');
+      const file = ev.dataTransfer?.files?.[0];
+      if (file) handleCustomJSONFile(file);
+    });
+
+    // Initial Boot
+    updateCopyFormatUI();
+    applyDensityUI();
+    renderSkeletons();
+
+    fetch('emojis.json?v=20261027e')
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(data => hydrateData(data, false))
+      .catch(() => {
+        // Gracefully hydrate with sample Telegram emojis if emojis.json is absent in preview
+        hydrateData(FALLBACK_DEMO_DATA, true);
+      });
+  </script>
 </body>
 </html>
